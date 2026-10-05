@@ -119,4 +119,4 @@ python tests/e2e_smoke.py      # exits non-zero on any JavaScript error
 
 ## Note
 
-This is a front-end prototype with simulated orders, customers, pilots and clock. No real customer data is used, and no messages are sent. Meesho and Valmo names are used for a case-competition submission.
+This is a front-end prototype with simulated orders, customers, pilots and clock. No real customer data is used, and no messages are sent. Meesho and Valmo names are used for case-competition submission.
