@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="description" content="Prototype: pre-dispatch COD intent confirmation and verified-attempt incentives to cut RTOs at Valmo.">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Valmo RTO Shield: Pakka Check and Attempt Rewards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Mukta:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">valmo <span>RTO Shield prototype</span></div>
+    <nav class="tabs" role="tablist" aria-label="Prototype sections">
+      <button class="tab" role="tab" data-act="tab" data-view="intent" id="tab-intent" aria-controls="view-intent"><span class="n">1</span>Before dispatch: Pakka Check</button>
+      <button class="tab" role="tab" data-act="tab" data-view="pilot" id="tab-pilot" aria-controls="view-pilot"><span class="n">2</span>At the door: Attempt Rewards</button>
+      <button class="tab" role="tab" data-act="tab" data-view="impact" id="tab-impact" aria-controls="view-impact"><span class="n">3</span>Impact model</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- ================= VIEW 1: INTENT ================= -->
+  <section id="view-intent" role="tabpanel" aria-labelledby="tab-intent">
+    <div class="view-head">
+      <div>
+        <h1>Confirm COD intent before the parcel moves</h1>
+        <p>Pakka Check runs after the seller marks an order ready and before Valmo allocates a first-mile partner. Pick an order, mark it ready, then reply on the phone as the customer.</p>
+      </div>
+      <div class="where" aria-label="Where this sits in the order flow">
+        <span class="step">Seller marks ready</span><span aria-hidden="true">›</span>
+        <span class="step on">Pakka Check</span><span aria-hidden="true">›</span>
+        <span class="step">First-mile allocation</span>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="col-left left-grid">
+        <div class="panel">
+          <div class="clock">
+            <div class="clock-time" id="clock" aria-live="polite"></div>
+            <div class="btn-row">
+              <button class="btn btn-sm" data-act="ff" data-h="1" title="Move the simulated clock forward 1 hour">+1 h</button>
+              <button class="btn btn-sm" data-act="ff" data-h="6" title="Move the simulated clock forward 6 hours">+6 h</button>
+            </div>
+          </div>
+          <h2>Orders ready at seller</h2>
+          <p class="hint">COD orders from the Lucknow cluster. Risk is previewed live and locked once the order is marked ready.</p>
+          <ul class="queue" id="queue"></ul>
+          <div class="btn-row" style="margin-top:12px">
+            <button class="btn btn-sm" data-act="ready-all">Mark all ready</button>
+            <button class="btn btn-sm" data-act="reset"><svg class="ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.5 15a9 9 0 1 0 2.1-9.4L1 10"/></svg>Reset demo</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Hub today</h2>
+          <div class="kpis" id="kpis"></div>
+          <hr class="sep">
+          <details class="rules">
+            <summary>Rules for this hub</summary>
+            <p class="hint" style="margin-top:8px">Changes apply to orders marked ready after the change.</p>
+            <div class="field"><label for="r-window">Confirmation window (hours)</label><input id="r-window" type="number" min="1" max="48" step="1" data-cfg="intent.confirmWindowHrs"></div>
+            <div class="field"><label for="r-hold">Hold before auto-cancel (hours)</label><input id="r-hold" type="number" min="0" max="48" step="1" data-cfg="intent.holdHrs"></div>
+            <div class="field"><label for="r-high">High-risk score from</label><input id="r-high" type="number" min="10" max="100" step="1" data-cfg="intent.thresholds.high"></div>
+            <div class="field"><label for="r-med">Medium-risk score from</label><input id="r-med" type="number" min="0" max="99" step="1" data-cfg="intent.thresholds.medium"></div>
+          </details>
+        </div>
+      </div>
+
+      <div class="phone-col">
+        <div class="phone"><div class="notch" aria-hidden="true"></div><div class="screen" id="iphone" aria-label="Customer phone"></div></div>
+      </div>
+
+      <div class="col-right">
+        <div class="panel" id="iconsole"></div>
+        <div class="panel">
+          <details class="rules">
+            <summary>How this plugs into the Valmo stack</summary>
+            <ul class="integr">
+              <li>Listens to the existing <code>seller.order_ready</code> event from order management. No seller-side change.</li>
+              <li>Holds <code>fm.allocate</code> until the customer confirms or the hub policy times out, so no linehaul is spent on uncommitted orders.</li>
+              <li>Writes the risk tier and intent status to the shipment record. The Pilot app reads it to set attempt priority and bonus eligibility (tab 2).</li>
+              <li>Channel adapters share one action set, so WhatsApp, SMS and IVR can be added or swapped per pincode without touching rules.</li>
+            </ul>
+          </details>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= VIEW 2: PILOT ================= -->
+  <section id="view-pilot" role="tabpanel" aria-labelledby="tab-pilot" hidden>
+    <div class="view-head">
+      <div>
+        <h1>Pay pilots for attempts that really happened</h1>
+        <p>A verified attempt needs the pilot inside the geofence plus proof: a doorway photo or a masked call. Bonuses stack by distance, zone and tier, with a per-shift cap so routes can't be farmed.</p>
+      </div>
+      <div class="where" aria-label="Where this sits in the order flow">
+        <span class="step">Dispatched</span><span aria-hidden="true">›</span>
+        <span class="step on">Verified attempt</span><span aria-hidden="true">›</span>
+        <span class="step">Delivered</span>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="col-left left-grid">
+        <div class="panel">
+          <h2>Field simulator</h2>
+          <p class="hint">Stand-ins for what the phone senses at the doorstep.</p>
+          <div class="sim-row">
+            <label for="sim-gps">Distance from customer pin <output id="sim-gps-out">72 m</output></label>
+            <input id="sim-gps" type="range" min="0" max="400" step="2" value="72">
+          </div>
+          <label class="toggle"><input type="checkbox" id="sim-answer" checked><span>Customer answers the call<small>Unanswered calls ring out after 20 s and don't count as proof.</small></span></label>
+          <label class="toggle"><input type="checkbox" id="sim-reuse"><span>Reuse the last photo<small>Tests the duplicate-photo check.</small></span></label>
+          <p class="hint" style="margin:12px 0 0">Calls run at 5× speed in this demo.</p>
+        </div>
+        <div class="panel">
+          <details class="rules">
+            <summary>Incentive rules</summary>
+            <p class="hint" style="margin-top:8px">Apply instantly to the next attempt.</p>
+            <div class="field"><label for="p-geo">Geofence radius (m)</label><input id="p-geo" type="number" min="25" max="500" step="5" data-cfg="incentive.geofenceM"></div>
+            <div class="field"><label for="p-call">Minimum call (seconds)</label><input id="p-call" type="number" min="5" max="120" step="1" data-cfg="incentive.minCallSec"></div>
+            <div class="field"><label for="p-proof">Proof needed</label><select id="p-proof" data-cfg="incentive.proofMode"><option value="any">Photo or call</option><option value="all">Photo and call</option></select></div>
+            <div class="field"><label for="p-bonus">Verified attempt bonus (₹)</label><input id="p-bonus" type="number" min="0" max="100" step="1" data-cfg="incentive.attemptBonus"></div>
+            <div class="field"><label for="p-cap">Attempt bonus cap per shift (₹)</label><input id="p-cap" type="number" min="0" max="1000" step="5" data-cfg="incentive.shiftAttemptCap"></div>
+          </details>
+        </div>
+      </div>
+      <div class="phone-col">
+        <div class="phone"><div class="notch" aria-hidden="true"></div><div class="screen pa" id="pphone" aria-label="Valmo Pilot app"></div></div>
+      </div>
+      <div class="col-right">
+        <div class="panel" id="paudit"></div>
+        <div class="panel">
+          <h2>Event stream</h2>
+          <p class="hint">What the Pilot app sends to Valmo's payout ledger.</p>
+          <div class="events" id="plog"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= VIEW 3: IMPACT ================= -->
+  <section id="view-impact" role="tabpanel" aria-labelledby="tab-impact" hidden>
+    <div class="view-head">
+      <div>
+        <h1>What this is worth at Valmo scale</h1>
+        <p>Baseline from the proposal: about 588 million COD orders a year, 23.5% failing, ₹170 lost per RTO (₹50 forward plus ₹120 reverse). Move the inputs to test your own assumptions.</p>
+      </div>
+    </div>
+    <div class="impact">
+      <div class="panel" id="imp-inputs">
+        <h2>Assumptions</h2>
+        <div class="scen" role="group" aria-label="Scenarios">
+          <button data-act="scenario" data-r="10">Conservative 10%</button>
+          <button data-act="scenario" data-r="20">Moderate 20%</button>
+          <button data-act="scenario" data-r="25">Aggressive 25%</button>
+          <button data-act="scenario" data-r="45">Infographic 45%</button>
+        </div>
+        <div class="inp"><label for="i-orders">Annual COD orders <output data-out="orders"></output></label><input id="i-orders" type="range" min="100" max="1200" step="4" data-imp="orders"></div>
+        <div class="inp"><label for="i-rate">Baseline failure rate <output data-out="rate"></output></label><input id="i-rate" type="range" min="5" max="40" step="0.5" data-imp="rate"></div>
+        <div class="inp"><label for="i-cost">Cost per RTO <output data-out="cost"></output></label><input id="i-cost" type="range" min="50" max="300" step="5" data-imp="cost"></div>
+        <div class="inp"><label for="i-red">Relative RTO reduction <output data-out="red"></output></label><input id="i-red" type="range" min="0" max="60" step="1" data-imp="red"></div>
+        <div class="inp"><label for="i-msg">Messaging cost per order <output data-out="msg"></output></label><input id="i-msg" type="range" min="0" max="1" step="0.01" data-imp="msg"><small>WhatsApp utility template with SMS fallback, blended.</small></div>
+        <div class="inp"><label for="i-elig">Orders earning an attempt bonus <output data-out="elig"></output></label><input id="i-elig" type="range" min="0" max="50" step="1" data-imp="elig"><small>Only high-risk or long-distance parcels qualify.</small></div>
+        <div class="inp"><label for="i-inc">Average bonus per eligible order <output data-out="inc"></output></label><input id="i-inc" type="range" min="0" max="40" step="1" data-imp="inc"></div>
+      </div>
+      <div id="imp-out"></div>
+    </div>
+  </section>
+</main>
+<footer>Prototype with simulated orders, pilots and clock. No real customer data is used.</footer>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>
